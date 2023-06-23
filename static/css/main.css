@@ -1,0 +1,4 @@
+{% load static%}
+main {
+   background-image : url("{static 'images/bal.jpg'}")
+}
