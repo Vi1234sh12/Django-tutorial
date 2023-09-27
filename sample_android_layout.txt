@@ -1,0 +1,117 @@
+
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
+
+app = Flask(__name__)
+socketio = SocketIO(app)
+
+# Store canvas data on the server
+canvas_data = []
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
+    # Send existing canvas data to the newly connected client
+    for data in canvas_data:
+        emit('draw', data)
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Client disconnected')
+
+@socketio.on('draw')
+def handle_draw(data):
+    print('Received drawing data:', data)
+    
+    # Store the received drawing data on the server
+    canvas_data.append(data)
+    
+    # Broadcast the drawing data to all connected clients, including the sender
+    emit('draw', data, broadcast=True)
+
+if __name__ == '__main__':
+    socketio.run(app, debug=
+
+-----------------------------
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Canvas Drawing</title>
+</head>
+<body>
+    <canvas id="canvas" width="800" height="600"></canvas>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        var socket = io.connect('http://' + document.domain + ':' + location.port);
+
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext('2d');
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'black';
+
+        var drawing = false;
+        var lastX = 0;
+        var lastY = 0;
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+
+        canvas.addEventListener('touchstart', startDrawing);
+        canvas.addEventListener('touchmove', draw);
+        canvas.addEventListener('touchend', stopDrawing);
+
+        function startDrawing(e) {
+            drawing = true;
+            [lastX, lastY] = getCursorPosition(e);
+        }
+
+        function draw(e) {
+            if (!drawing) return;
+            var [x, y] = getCursorPosition(e);
+
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+
+            // Send drawing data to the server
+            socket.emit('draw', { x1: lastX, y1: lastY, x2: x, y2: y });
+
+            [lastX, lastY] = [x, y];
+        }
+
+        function stopDrawing() {
+            drawing = false;
+        }
+
+        function getCursorPosition(e) {
+            var rect = canvas.getBoundingClientRect();
+            if (e.touches && e.touches.length > 0) {
+                return [e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top];
+            } else {
+                return [e.clientX - rect.left, e.clientY - rect.top];
+            }
+        }
+
+        // Handle incoming drawing data from the server
+        socket.on('draw', function(data) {
+            ctx.beginPath();
+            ctx.moveTo(data.x1, data.y1);
+            ctx.lineTo(data.x2, data.y2);
+            ctx.stroke();
+        });
+    </script>
+</body>
+</html>
+----------------------------------------------------------
+
+
+True, host='192.168.92.97')
