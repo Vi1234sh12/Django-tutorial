@@ -1,0 +1,295 @@
+Python code 
+-----------------------
+
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'your_secret_key'
+socketio = SocketIO(app)
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@socketio.on('draw')
+def handle_draw(data):
+    emit('update_canvas', data, broadcast=True)
+
+if __name__ == '__main__':
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+
+------------------------------------------
+index.html code 
+--------------------
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Sharing</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="400" height="400"></canvas>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.1.3/socket.io.js"></script>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+
+        const socket = io.connect('http://your_server_ip:5000'); // Replace with your server IP and port
+
+        // Handle drawing on the canvas
+        let drawing = false;
+        let prevX = 0;
+        let prevY = 0;
+
+        canvas.addEventListener('mousedown', (e) => {
+            drawing = true;
+            prevX = e.clientX - canvas.getBoundingClientRect().left;
+            prevY = e.clientY - canvas.getBoundingClientRect().top;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!drawing) return;
+
+            const currX = e.clientX - canvas.getBoundingClientRect().left;
+            const currY = e.clientY - canvas.getBoundingClientRect().top;
+
+            // Draw on the canvas
+            context.beginPath();
+            context.moveTo(prevX, prevY);
+            context.lineTo(currX, currY);
+            context.strokeStyle = 'black';
+            context.lineWidth = 2;
+            context.stroke();
+            context.closePath();
+
+            // Send drawing data to the server
+            socket.emit('draw', { prevX, prevY, currX, currY });
+
+            prevX = currX;
+            prevY = currY;
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            drawing = false;
+        });
+
+        // Listen for updates from the server
+        socket.on('update_canvas', (data) => {
+            // Draw on the canvas based on data received from the server
+            context.beginPath();
+            context.moveTo(data.prevX, data.prevY);
+            context.lineTo(data.currX, data.currY);
+            context.strokeStyle = 'red'; // Color for drawings from other users
+            context.lineWidth = 2;
+            context.stroke();
+            context.closePath();
+        });
+    </script>
+</body>
+</html>
+-----------------------------------------
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Sharing</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="400" height="400"></canvas>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.1.3/socket.io.js"></script>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+
+        const socket = io.connect('http://your_server_ip:5000'); // Replace with your server IP and port
+
+        // Handle drawing on the canvas
+        let drawing = false;
+        let prevX = 0;
+        let prevY = 0;
+
+        canvas.addEventListener('mousedown', (e) => {
+            drawing = true;
+            prevX = e.clientX - canvas.getBoundingClientRect().left;
+            prevY = e.clientY - canvas.getBoundingClientRect().top;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!drawing) return;
+
+            const currX = e.clientX - canvas.getBoundingClientRect().left;
+            const currY = e.clientY - canvas.getBoundingClientRect().top;
+
+            // Draw on the canvas
+            context.beginPath();
+            context.moveTo(prevX, prevY);
+            context.lineTo(currX, currY);
+            context.strokeStyle = 'black';
+            context.lineWidth = 2;
+            context.stroke();
+            context.closePath();
+
+            // Send drawing data to the server
+            socket.emit('draw', { prevX, prevY, currX, currY });
+
+            prevX = currX;
+            prevY = currY;
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            drawing = false;
+        });
+
+        // Listen for updates from the server
+        socket.on('update_canvas', (data) => {
+            // Draw on the canvas based on data received from the server
+            context.beginPath();
+            context.moveTo(data.prevX, data.prevY);
+            context.lineTo(data.currX, data.currY);
+            context.strokeStyle = 'red'; // Color for drawings from other users
+            context.lineWidth = 2;
+            context.stroke();
+            context.closePath();
+        });
+    </script>
+</body>
+</html>
+
+-------------------------------------------
+Android code 
+
+----------------------
+import androidx.appcompat.app.AppCompatActivity;
+import android.graphics.Color;
+import android.os.Bundle;
+import android.util.Log;
+import android.view.MotionEvent;
+import org.json.JSONException;
+import org.json.JSONObject;
+import io.socket.client.IO;
+import io.socket.client.Socket;
+import io.socket.emitter.Emitter;
+
+public class MainActivity extends AppCompatActivity {
+
+    private Socket socket;
+    private float prevX = 0f;
+    private float prevY = 0f;
+    private float lineWidth = 5f;
+    private int color = Color.BLACK;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        try {
+            socket = IO.socket("http://your_server_ip:5000"); // Replace with your server IP and port
+            socket.connect();
+        } catch (Exception e) {
+            Log.e("Socket.IO", "Error connecting to the server: " + e.getMessage());
+        }
+
+        final CanvasView canvasView = findViewById(R.id.canvasView);
+        canvasView.setOnTouchListener((v, event) -> {
+            handleTouch(event);
+            return true;
+        });
+
+        socket.on("update_canvas", args -> {
+            JSONObject data = (JSONObject) args[0];
+            runOnUiThread(() -> drawOnCanvas(canvasView, data));
+        });
+    }
+
+    private void handleTouch(MotionEvent event) {
+        switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                prevX = event.getX();
+                prevY = event.getY();
+                break;
+            case MotionEvent.ACTION_MOVE:
+                float currX = event.getX();
+                float currY = event.getY();
+                JSONObject data = new JSONObject();
+                try {
+                    data.put("prevX", prevX);
+                    data.put("prevY", prevY);
+                    data.put("currX", currX);
+                    data.put("currY", currY);
+                    data.put("color", color);
+                    data.put("lineWidth", lineWidth);
+                    socket.emit("draw", data);
+                } catch (JSONException e) {
+                    Log.e("Socket.IO", "Error sending draw data: " + e.getMessage());
+                }
+                prevX = currX;
+                prevY = currY;
+                break;
+        }
+    }
+
+    private void drawOnCanvas(CanvasView canvasView, JSONObject data) {
+        try {
+            float prevX = (float) data.getDouble("prevX");
+            float prevY = (float) data.getDouble("prevY");
+            float currX = (float) data.getDouble("currX");
+            float currY = (float) data.getDouble("currY");
+            int color = data.getInt("color");
+            float lineWidth = (float) data.getDouble("lineWidth");
+            canvasView.drawPath(prevX, prevY, currX, currY, color, lineWidth);
+        } catch (JSONException e) {
+            Log.e("Socket.IO", "Error parsing draw data: " + e.getMessage());
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        socket.disconnect();
+    }
+}
+---------------------------------------
+XML layout 
+-------------------------
+
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <com.example.myapp.CanvasView
+        android:id="@+id/canvasView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_centerInParent="true"
+        android:background="#ffffff"
+        app:lineColor="#000000"
+        app:lineWidth="5"
+        app:paintStyle="stroke" />
+
+</RelativeLayout>
+
+-------------------------------------------
+
+
+
+
