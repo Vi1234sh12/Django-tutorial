@@ -115,3 +115,10 @@ if __name__ == '__main__':
 
 
 True, host='192.168.92.97')
+--------------------------------------
+
+https://github.com/AndreyMatos/realtime_poc?source=post_page-----b9da5da5931c--------------------------------
+https://www.youtube.com/watch?v=JljMBn69fZM
+https://github.com/divyanshu-rawat/realtime-sockets-drawing-app
+https://gist.github.com/lachezar/339983
+https://outcrawl.com/realtime-collaborative-drawing-go
