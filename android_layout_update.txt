@@ -1,0 +1,594 @@
+dependencies {
+    implementation 'org.java-websocket:Java-WebSocket:1.5.1'
+}
+
+---------------------------
+
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/messageTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Received Message:"
+        android:textSize="18sp"
+        android:layout_centerInParent="true"/>
+
+    <TextView
+        android:id="@+id/receivedMessageTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/messageTextView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="16dp"
+        android:text=""
+        android:textSize="24sp"/>
+</RelativeLayout>
+
+-------------------------------------
+
+import androidx.appcompat.app.AppCompatActivity;
+import android.os.Bundle;
+import android.widget.TextView;
+import org.java_websocket.client.WebSocketClient;
+import org.java_websocket.handshake.ServerHandshake;
+import java.net.URI;
+import java.net.URISyntaxException;
+
+public class MainActivity extends AppCompatActivity {
+
+    private WebSocketClient webSocketClient;
+    private TextView receivedMessageTextView;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        receivedMessageTextView = findViewById(R.id.receivedMessageTextView);
+
+        try {
+            URI serverUri = new URI("ws://192.168.92.97:5000"); // Replace with your Flask WebSocket URI
+            webSocketClient = new WebSocketClient(serverUri) {
+                @Override
+                public void onOpen(ServerHandshake handshakedata) {
+                    // Handle WebSocket connection opened
+                }
+
+                @Override
+                public void onMessage(String message) {
+                    // Handle received messages (drawing data)
+                    runOnUiThread(() -> {
+                        receivedMessageTextView.setText(message);
+                    });
+                }
+
+                @Override
+                public void onClose(int code, String reason, boolean remote) {
+                    // Handle WebSocket connection closed
+                }
+
+                @Override
+                public void onError(Exception ex) {
+                    // Handle WebSocket error
+                }
+            };
+            webSocketClient.connect();
+        } catch (URISyntaxException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (webSocketClient != null) {
+            webSocketClient.close();
+        }
+    }
+}
+------------------------------------
+
+
+
+
+------------------------------------------------
+
+
+
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
+
+app = Flask(__name__)
+socketio = SocketIO(app)
+
+# Store canvas data on the server
+canvas_data = []
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
+    # Send existing canvas data to the newly connected client
+    for data in canvas_data:
+        emit('draw', data)
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Client disconnected')
+
+@socketio.on('draw')
+def handle_draw(data):
+    print('Received drawing data:', data)
+    
+    # Store the received drawing data on the server
+    canvas_data.append(data)
+    
+    # Broadcast the drawing data to all connected clients, including the sender
+    emit('draw', data, broadcast=True)
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True, host='192.168.92.97')
+-----------------------------------------
+
+import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
+import com.neovisionaries.ws.client.*;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+public class MainActivity extends AppCompatActivity {
+
+    private WebSocket webSocket;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        // Replace with your Flask server's WebSocket URL
+        String serverUrl = "ws://192.168.92.97:5000";
+        connectWebSocket(serverUrl);
+    }
+
+    private void connectWebSocket(String url) {
+        try {
+            webSocket = new WebSocketFactory().createSocket(url);
+            webSocket.addListener(new WebSocketAdapter() {
+                @Override
+                public void onTextMessage(WebSocket websocket, String message) throws JSONException {
+                    Log.d("WebSocket", "Received message: " + message);
+
+                    // Handle the received drawing data
+                    try {
+                        JSONObject jsonObject = new JSONObject(message);
+                        String x = jsonObject.getString("x");
+                        String y = jsonObject.getString("y");
+                        String color = jsonObject.getString("color");
+
+                        // Process and use the drawing data (x, y, color) as needed
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+            webSocket.connectAsynchronously();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (webSocket != null) {
+            webSocket.disconnect();
+        }
+    }
+}
+
+--------------------------------------------
+
+I't s work code 
+
+----------------
+
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
+import socket
+import threading
+import json
+
+app = Flask(__name__)
+socketio = SocketIO(app)
+
+# Store canvas data on the server
+canvas_data = []
+
+# Create a socket server
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind(('0.0.0.0', 5001))  # Use a different port for the socket server
+server.listen(5)
+
+# Store connected socket clients
+clients = []
+
+# Function to broadcast data to all connected socket clients
+def broadcast_socket_data(data):
+    for client_socket in clients:
+        try:
+            # Send the data to the client
+            client_socket.send(data.encode('utf-8'))
+        except Exception as e:
+            print(f"Error sending data to client: {e}")
+            clients.remove(client_socket)
+
+# Function to handle each client's socket connection
+def handle_socket_client(client_socket):
+    while True:
+        try:
+            # Receive data from the client
+            data = client_socket.recv(1024)
+            if not data:
+                # If no data is received, remove the client and exit the loop
+                clients.remove(client_socket)
+                break
+            else:
+                # Broadcast the received data to all connected clients, including the sender
+                broadcast_socket_data(data.decode('utf-8'))
+        except Exception as e:
+            print(f"Error: {e}")
+            clients.remove(client_socket)
+            break
+
+# Function to handle drawing data received from WebSocket and send it over the socket connection
+@socketio.on('draw')
+def handle_draw(data):
+    print('Received drawing data:', data)
+    
+    # Store the received drawing data on the server
+    canvas_data.append(data)
+    
+    # Broadcast the drawing data to all connected clients via WebSocket, including the sender
+    emit('draw', data, broadcast=True)
+
+    # Send the drawing data to all connected clients via socket
+    data_json = json.dumps(data)
+    broadcast_socket_data(data_json)
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
+    # Send existing canvas data to the newly connected client via WebSocket
+    for data in canvas_data:
+        emit('draw', data)
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Client disconnected')
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True, host='192.168.92.97', port=5000)
+
+
+-------------------------------
+
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/receivedDataTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Received Data:"
+        android:textSize="18sp"
+        android:layout_centerInParent="true"/>
+
+    <TextView
+        android:id="@+id/displayedDataTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/receivedDataTextView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="16dp"
+        android:text=""
+        android:textSize="24sp"/>
+</RelativeLayout>
+
+--------------------------------------
+import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
+import android.widget.TextView;
+
+import com.neovisionaries.ws.client.WebSocket;
+import com.neovisionaries.ws.client.WebSocketAdapter;
+import com.neovisionaries.ws.client.WebSocketException;
+import com.neovisionaries.ws.client.WebSocketFactory;
+import com.neovisionaries.ws.client.WebSocketFrame;
+import com.neovisionaries.ws.client.WebSocketState;
+import com.neovisionaries.ws.client.WebSocketTextFrame;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+public class MainActivity extends AppCompatActivity {
+
+    private TextView displayedDataTextView;
+    private WebSocket webSocket;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        displayedDataTextView = findViewById(R.id.displayedDataTextView);
+
+        // Replace with your WebSocket URL
+        String serverUrl = "ws://192.168.92.97:5000"; // Replace with your server URL
+        connectWebSocket(serverUrl);
+    }
+
+    private void connectWebSocket(String url) {
+        try {
+            webSocket = new WebSocketFactory().createSocket(url);
+            webSocket.addListener(new WebSocketAdapter() {
+                @Override
+                public void onTextMessage(WebSocket websocket, String message) throws JSONException {
+                    // Handle the received drawing data
+                    try {
+                        JSONObject jsonObject = new JSONObject(message);
+                        String x = jsonObject.getString("x");
+                        String y = jsonObject.getString("y");
+                        String color = jsonObject.getString("color");
+
+                        // Process and use the drawing data (x, y, color) as needed
+
+                        // Update the TextView with received data
+                        updateDisplay("Received Data: " + x + ", " + y + ", " + color);
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+
+            webSocket.connectAsynchronously();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Create a method to update the TextView with received data
+    public void updateDisplay(final String data) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                displayedDataTextView.setText(data);
+            }
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (webSocket != null && webSocket.isOpen()) {
+            webSocket.disconnect();
+        }
+    }
+}
+
+-----------------------------------------------
+
+implementation 'com.neovisionaries:nv-websocket-client:2.11'
+
+
+-------------------------------
+
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/receivedDataTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Received Data:"
+        android:textSize="18sp"
+        android:layout_centerInParent="true"/>
+
+    <TextView
+        android:id="@+id/displayedDataTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/receivedDataTextView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="16dp"
+        android:text=""
+        android:textSize="24sp"/>
+</RelativeLayout>
+
+-------------------------------
+
+import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
+import android.widget.TextView;
+
+import com.neovisionaries.ws.client.*;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+public class MainActivity extends AppCompatActivity {
+
+    private TextView displayedDataTextView;
+    private WebSocket webSocket;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        displayedDataTextView = findViewById(R.id.displayedDataTextView);
+
+        // Replace with your WebSocket URL
+        String serverUrl = "ws://192.168.92.97:5000"; // Replace with your server URL
+        connectWebSocket(serverUrl);
+    }
+
+    private void connectWebSocket(String url) {
+        try {
+            webSocket = new WebSocketFactory().createSocket(url);
+            webSocket.addListener(new WebSocketAdapter() {
+                @Override
+                public void onTextMessage(WebSocket websocket, String message) throws JSONException {
+                    // Handle the received drawing data
+                    try {
+                        JSONObject jsonObject = new JSONObject(message);
+                        String x = jsonObject.getString("x");
+                        String y = jsonObject.getString("y");
+                        String color = jsonObject.getString("color");
+
+                        // Process and use the drawing data (x, y, color) as needed
+
+                        // Update the TextView with received data
+                        updateDisplay("Received Data: " + x + ", " + y + ", " + color);
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+
+            webSocket.connectAsynchronously();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Create a method to update the TextView with received data
+    public void updateDisplay(final String data) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                displayedDataTextView.setText(data);
+            }
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (webSocket != null && webSocket.isOpen()) {
+            webSocket.disconnect();
+        }
+    }
+}
+
+------------------------------
+
+
+
+------------------------------------
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/drawingDataTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="24sp"
+        android:layout_centerInParent="true"/>
+</RelativeLayout>
+
+
+-------------------------------
+
+import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
+import android.widget.TextView;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.Socket;
+
+public class MainActivity extends AppCompatActivity {
+
+    private TextView drawingDataTextView;
+    private static final String SERVER_IP = "192.168.92.97"; // Replace with your server's IP address
+    private static final int SERVER_PORT = 5001; // Replace with your server's port
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        drawingDataTextView = findViewById(R.id.drawingDataTextView);
+
+        // Start a thread to establish a socket connection and receive data
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Socket socket = new Socket(SERVER_IP, SERVER_PORT);
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        final String data = line;
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                // Update the TextView with received data (drawing data)
+                                drawingDataTextView.setText(data);
+                            }
+                        });
+                    }
+
+                    socket.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+    }
+}
+
+
+---------------------------------------------------
+
+
+
+
