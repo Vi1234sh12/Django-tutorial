@@ -1,0 +1,284 @@
+implementation "androidx.camera:camera-camera2:1.1.0-alpha01"
+implementation "androidx.camera:camera-lifecycle:1.1.0-alpha01"
+
+---------------------
+<uses-feature android:name="android.hardware.camera.any" />
+<uses-permission android:name="android.permission.CAMERA" />
+
+---------------------
+
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextureView
+        android:id="@+id/textureView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+</RelativeLayout>
+
+-----------------------------
+
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.os.Bundle;
+import android.util.Size;
+import android.view.Surface;
+import android.view.TextureView;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.camera.core.Camera;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.core.Preview;
+import androidx.camera.core.PreviewConfig;
+import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.lifecycle.ViewModelProvider;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class MainActivity extends AppCompatActivity {
+
+    private static final int REQUEST_CODE_PERMISSIONS = 101;
+    private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA};
+
+    private TextureView textureView;
+    private ExecutorService cameraExecutor;
+    private Paint paint;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        textureView = findViewById(R.id.textureView);
+
+        if (allPermissionsGranted()) {
+            startCamera();
+        } else {
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS);
+        }
+
+        cameraExecutor = Executors.newSingleThreadExecutor();
+
+        paint = new Paint();
+        paint.setColor(Color.RED);
+        paint.setTextSize(48);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CODE_PERMISSIONS) {
+            if (allPermissionsGranted()) {
+                startCamera();
+            } else {
+                // Handle permission denial
+            }
+        }
+    }
+
+    private boolean allPermissionsGranted() {
+        for (String permission : REQUIRED_PERMISSIONS) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void startCamera() {
+        PreviewConfig previewConfig = new PreviewConfig.Builder().build();
+        Preview preview = new Preview(previewConfig);
+
+        CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
+
+        preview.setSurfaceProvider(textureView.getSurfaceProvider());
+
+        ProcessCameraProvider cameraProvider = null;
+        try {
+            cameraProvider = ProcessCameraProvider.getInstance(this);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        preview.setOnPreviewOutputUpdateListener(output -> {
+            Surface surfaceTexture = output.getSurfaceTexture();
+            updateCanvas(surfaceTexture);
+        });
+
+        Camera camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview);
+    }
+
+    private void updateCanvas(Surface surfaceTexture) {
+        Canvas canvas = surfaceTexture.lockCanvas(null);
+        if (canvas != null) {
+            // Clear the canvas
+            canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR);
+
+            // Draw something on the canvas
+            canvas.drawText("Hello, Canvas!", 100, 100, paint);
+
+            surfaceTexture.unlockCanvasAndPost(canvas);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        cameraExecutor.shutdown();
+    }
+}
+
+-----------------------
+
+
+
+
+---------------------------
+
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextureView
+        android:id="@+id/textureViewCamera"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <TextureView
+        android:id="@+id/textureViewCanvas"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+</RelativeLayout>
+
+---------------------
+
+
+import android.content.pm.PackageManager;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
+import android.os.Bundle;
+import android.util.Size;
+import android.view.TextureView;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.camera.core.Camera;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.core.Preview;
+import androidx.camera.core.PreviewConfig;
+import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.lifecycle.ViewModelProvider;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class MainActivity extends AppCompatActivity {
+
+    private static final int REQUEST_CODE_PERMISSIONS = 101;
+    private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA};
+
+    private TextureView textureViewCamera;
+    private TextureView textureViewCanvas;
+    private ExecutorService cameraExecutor;
+    private Paint paint;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        textureViewCamera = findViewById(R.id.textureViewCamera);
+        textureViewCanvas = findViewById(R.id.textureViewCanvas);
+
+        if (allPermissionsGranted()) {
+            startCamera();
+        } else {
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS);
+        }
+
+        cameraExecutor = Executors.newSingleThreadExecutor();
+
+        paint = new Paint();
+        paint.setColor(Color.RED);
+        paint.setTextSize(48);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CODE_PERMISSIONS) {
+            if (allPermissionsGranted()) {
+                startCamera();
+            } else {
+                // Handle permission denial
+            }
+        }
+    }
+
+    private boolean allPermissionsGranted() {
+        for (String permission : REQUIRED_PERMISSIONS) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void startCamera() {
+        PreviewConfig previewConfig = new PreviewConfig.Builder().build();
+        Preview preview = new Preview(previewConfig);
+
+        CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
+
+        preview.setSurfaceProvider(textureViewCamera.getSurfaceProvider());
+
+        ProcessCameraProvider cameraProvider = null;
+        try {
+            cameraProvider = ProcessCameraProvider.getInstance(this);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        preview.setOnPreviewOutputUpdateListener(output -> {
+            // Clear the canvas
+            textureViewCanvas.setAlpha(0f);
+            Canvas canvas = textureViewCanvas.lockCanvas(null);
+            if (canvas != null) {
+                canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+
+                // Draw something on the canvas
+                canvas.drawText("Hello, Canvas!", 100, 100, paint);
+
+                textureViewCanvas.unlockCanvasAndPost(canvas);
+                textureViewCanvas.setAlpha(1f); // Show the canvas overlay
+            }
+        });
+
+        Camera camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        cameraExecutor.shutdown();
+    }
+}
+
+------------------------------
+
+
+
+
