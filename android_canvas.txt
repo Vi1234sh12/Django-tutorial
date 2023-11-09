@@ -281,4 +281,16 @@ public class MainActivity extends AppCompatActivity {
 
 
 
+https://google-developer-training.github.io/android-developer-fundamentals-course-concepts/en/android-developer-fundamentals-course-concepts-en.pdf
+https://www.luciopanasci.it/Ebooks/Learn%20Java%20for%20Android%20Development,%202nd%20Edition.pdf
+
+https://abhiandroid.com/ui/#gsc.tab=0
+https://enos.itcollege.ee/~jpoial/allalaadimised/reading/Android-UI-Design.pdf
+https://jpaulgibson.synology.me/~jpaulgibson/TSP/Teaching/Teaching-ReadingMaterial/Morris11.pdf
+https://darmanto.akakom.ac.id/android/04.1.Layouts.pdf
+https://freecomputerbooks.com/Android-UI-Design.html
+https://commonsware.com/AndTutorials/AndTutorials-3_1-CC.pdf
+https://design.samsung.com/global/contents/one-ui/download/oneui_design_guide_eng.pdf
+
+
 
